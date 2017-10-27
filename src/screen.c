@@ -9,11 +9,22 @@
 #define UNICODE_SPACE 0x20
 #define UNICODE_LINEFEED 0x0a
 
+typedef struct
+{
+  uint8_t is_default; /* 0 or 1 */
+  uint8_t idx;        /* valid if is_default is 0 */
+} PaletteColor;
+
+typedef union
+{
+  VTermColor   rgb;
+  PaletteColor pal;
+} Color;
+
 /* State of the pen at some moment in time, also used in a cell */
 typedef struct
 {
-  /* After the bitfield */
-  VTermColor   fg, bg;
+  Color        fg, bg;
 
   unsigned int bold      : 1;
   unsigned int underline : 2;
@@ -22,6 +33,8 @@ typedef struct
   unsigned int reverse   : 1;
   unsigned int strike    : 1;
   unsigned int font      : 4; /* 0 to 9 */
+  unsigned int fg_is_rgb : 1;
+  unsigned int bg_is_rgb : 1;
 
   /* Extra state storage that isn't strictly pen-related */
   unsigned int protected_cell : 1;
@@ -66,7 +79,49 @@ struct VTermScreen
   VTermScreenCell *sb_buffer;
 
   ScreenPen pen;
+  int16_t fg_index, bg_index;
 };
+
+/* Copy pen from screen to cell */
+static inline void copypen(ScreenCell *cell, const VTermScreen *screen)
+{
+  cell->pen = screen->pen;
+
+  if (screen->fg_index == VTERM_PAL_INDEX_DEFAULT) {
+    cell->pen.fg_is_rgb = false;
+    cell->pen.fg.pal.is_default = true;
+  } else if (screen->fg_index == VTERM_PAL_INDEX_RGB) {
+    cell->pen.fg_is_rgb = true;
+  } else {
+    cell->pen.fg_is_rgb = false;
+    cell->pen.fg.pal.is_default = false;
+    cell->pen.fg.pal.idx = screen->fg_index;
+  }
+
+  if (screen->bg_index == VTERM_PAL_INDEX_DEFAULT) {
+    cell->pen.bg_is_rgb = false;
+    cell->pen.bg.pal.is_default = true;
+  } else if (screen->bg_index == VTERM_PAL_INDEX_RGB) {
+    cell->pen.bg_is_rgb = true;
+  } else {
+    cell->pen.bg_is_rgb = false;
+    cell->pen.bg.pal.is_default = false;
+    cell->pen.bg.pal.idx = screen->bg_index;
+  }
+}
+
+static inline int color_equal(Color a, bool a_is_rgb, Color b, bool b_is_rgb)
+{
+  if (a_is_rgb != b_is_rgb)
+    return false;
+  if (a_is_rgb)
+    return vterm_color_equal(a.rgb, b.rgb);
+  if (a.pal.is_default != b.pal.is_default)
+    return false;
+  if (!a.pal.is_default)
+    return a.pal.idx != b.pal.idx;
+  return true;
+}
 
 static inline ScreenCell *getcell(const VTermScreen *screen, int row, int col)
 {
@@ -89,7 +144,7 @@ static ScreenCell *realloc_buffer(VTermScreen *screen, ScreenCell *buffer, int n
         *new_cell = buffer[row * screen->cols + col];
       else {
         new_cell->chars[0] = 0;
-        new_cell->pen = screen->pen;
+        copypen(new_cell, screen);
       }
     }
   }
@@ -180,7 +235,7 @@ static int putglyph(VTermGlyphInfo *info, VTermPos pos, void *user)
   int i;
   for(i = 0; i < VTERM_MAX_CHARS_PER_CELL && info->chars[i]; i++) {
     cell->chars[i] = info->chars[i];
-    cell->pen = screen->pen;
+    copypen(cell, screen);
   }
   if(i < VTERM_MAX_CHARS_PER_CELL)
     cell->chars[i] = 0;
@@ -276,7 +331,7 @@ static int erase_internal(VTermRect rect, int selective, void *user)
         continue;
 
       cell->chars[0] = 0;
-      cell->pen = screen->pen;
+      copypen(cell, screen);
       cell->pen.dwl = info->doublewidth;
       cell->pen.dhl = info->doubleheight;
     }
@@ -421,10 +476,18 @@ static int setpenattr(VTermAttr attr, VTermValue *val, void *user)
     screen->pen.font = val->number;
     return 1;
   case VTERM_ATTR_FOREGROUND:
-    screen->pen.fg = val->color;
+    if (screen->fg_index == VTERM_PAL_INDEX_RGB)
+      screen->pen.fg.rgb = val->color;
     return 1;
   case VTERM_ATTR_BACKGROUND:
-    screen->pen.bg = val->color;
+    if (screen->bg_index == VTERM_PAL_INDEX_RGB)
+      screen->pen.bg.rgb = val->color;
+    return 1;
+  case VTERM_ATTR_FOREGROUND_INDEX:
+    screen->fg_index = val->number;
+    return 1;
+  case VTERM_ATTR_BACKGROUND_INDEX:
+    screen->bg_index = val->number;
     return 1;
 
   case VTERM_N_ATTRS:
@@ -733,6 +796,45 @@ size_t vterm_screen_get_text(const VTermScreen *screen, char *str, size_t len, c
   return _get_chars(screen, 1, str, len, rect);
 }
 
+/* Copy internal to external representation of palette index and rgb */
+static void vterm_color_to_ext(const VTermState *state, VTermColor default_rgb,
+    bool intense,
+    bool int_is_rgb, Color int_color,
+    int16_t *ext_index, VTermColor *ext_rgb)
+{
+  if (int_is_rgb) {
+    *ext_rgb = int_color.rgb;
+    *ext_index = VTERM_PAL_INDEX_RGB;
+  } else {
+    if (int_color.pal.is_default) {
+      *ext_rgb = default_rgb;
+      *ext_index = VTERM_PAL_INDEX_DEFAULT;
+    } else {
+      uint8_t idx = int_color.pal.idx;
+      if (idx < 8 && intense)
+        idx += 8;
+      vterm_state_get_palette_color(state, idx, ext_rgb);
+      *ext_index = int_color.pal.idx;
+    }
+  }
+}
+
+/* Copy external to internal representation of palette index and rgb. Returns if color is rgb */
+static unsigned int vterm_color_from_ext(int16_t ext_index, VTermColor ext_rgb, Color *int_color)
+{
+  if (ext_index == VTERM_PAL_INDEX_DEFAULT) {
+    int_color->pal.is_default = true;
+    return false;
+  }
+  if (ext_index == VTERM_PAL_INDEX_RGB) {
+    int_color->rgb = ext_rgb;
+    return true;
+  }
+  int_color->pal.is_default = false;
+  int_color->pal.idx = ext_index;
+  return false;
+}
+
 /* Copy internal to external representation of a screen cell */
 int vterm_screen_get_cell(const VTermScreen *screen, VTermPos pos, VTermScreenCell *cell)
 {
@@ -757,8 +859,14 @@ int vterm_screen_get_cell(const VTermScreen *screen, VTermPos pos, VTermScreenCe
   cell->attrs.dwl = intcell->pen.dwl;
   cell->attrs.dhl = intcell->pen.dhl;
 
-  cell->fg = intcell->pen.fg;
-  cell->bg = intcell->pen.bg;
+  vterm_color_to_ext(screen->state, screen->state->default_fg,
+      screen->state->bold_is_highbright && cell->attrs.bold,
+      intcell->pen.fg_is_rgb, intcell->pen.fg,
+      &cell->fg_index, &cell->fg);
+  vterm_color_to_ext(screen->state, screen->state->default_bg,
+      false,
+      intcell->pen.bg_is_rgb, intcell->pen.bg,
+      &cell->bg_index, &cell->bg);
 
   if(pos.col < (screen->cols - 1) &&
      getcell(screen, pos.row, pos.col + 1)->chars[0] == (uint32_t)-1)
@@ -791,8 +899,8 @@ static int vterm_screen_set_cell(VTermScreen *screen, VTermPos pos, const VTermS
   intcell->pen.strike    = cell->attrs.strike;
   intcell->pen.font      = cell->attrs.font;
 
-  intcell->pen.fg = cell->fg;
-  intcell->pen.bg = cell->bg;
+  intcell->pen.fg_is_rgb = vterm_color_from_ext(cell->fg_index, cell->fg, &intcell->pen.fg);
+  intcell->pen.bg_is_rgb = vterm_color_from_ext(cell->bg_index, cell->bg, &intcell->pen.bg);
 
   if(cell->width == 2)
     getcell(screen, pos.row, pos.col + 1)->chars[0] = (uint32_t)-1;
@@ -894,9 +1002,11 @@ static int attrs_differ(VTermAttrMask attrs, ScreenCell *a, ScreenCell *b)
     return 1;
   if((attrs & VTERM_ATTR_FONT_MASK)       && (a->pen.font != b->pen.font))
     return 1;
-  if((attrs & VTERM_ATTR_FOREGROUND_MASK) && !vterm_color_equal(a->pen.fg, b->pen.fg))
+  if((attrs & VTERM_ATTR_FOREGROUND_MASK) &&
+      !color_equal(a->pen.fg, a->pen.fg_is_rgb, b->pen.fg, b->pen.fg_is_rgb))
     return 1;
-  if((attrs & VTERM_ATTR_BACKGROUND_MASK) && !vterm_color_equal(a->pen.bg, b->pen.bg))
+  if((attrs & VTERM_ATTR_BACKGROUND_MASK) &&
+      !color_equal(a->pen.bg, a->pen.bg_is_rgb, b->pen.bg, b->pen.bg_is_rgb))
     return 1;
 
   return 0;

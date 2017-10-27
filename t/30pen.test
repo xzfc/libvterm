@@ -10,8 +10,8 @@ PUSH "\e[m"
   ?pen blink = off
   ?pen reverse = off
   ?pen font = 0
-  ?pen foreground = rgb(240,240,240)
-  ?pen background = rgb(0,0,0)
+  ?pen foreground = default:rgb(240,240,240)
+  ?pen background = default:rgb(0,0,0)
 
 !Bold
 PUSH "\e[1m"
@@ -67,49 +67,49 @@ PUSH "\e[11m\e[m"
 
 !Foreground
 PUSH "\e[31m"
-  ?pen foreground = rgb(224,0,0)
+  ?pen foreground = 1:rgb(224,0,0)
 PUSH "\e[32m"
-  ?pen foreground = rgb(0,224,0)
+  ?pen foreground = 2:rgb(0,224,0)
 PUSH "\e[34m"
-  ?pen foreground = rgb(0,0,224)
+  ?pen foreground = 4:rgb(0,0,224)
 PUSH "\e[91m"
-  ?pen foreground = rgb(255,64,64)
+  ?pen foreground = 9:rgb(255,64,64)
 PUSH "\e[38:2:10:20:30m"
-  ?pen foreground = rgb(10,20,30)
+  ?pen foreground = rgb:rgb(10,20,30)
 PUSH "\e[38:5:1m"
-  ?pen foreground = rgb(224,0,0)
+  ?pen foreground = 1:rgb(224,0,0)
 PUSH "\e[39m"
-  ?pen foreground = rgb(240,240,240)
+  ?pen foreground = default:rgb(240,240,240)
 
 !Background
 PUSH "\e[41m"
-  ?pen background = rgb(224,0,0)
+  ?pen background = 1:rgb(224,0,0)
 PUSH "\e[42m"
-  ?pen background = rgb(0,224,0)
+  ?pen background = 2:rgb(0,224,0)
 PUSH "\e[44m"
-  ?pen background = rgb(0,0,224)
+  ?pen background = 4:rgb(0,0,224)
 PUSH "\e[101m"
-  ?pen background = rgb(255,64,64)
+  ?pen background = 9:rgb(255,64,64)
 PUSH "\e[48:2:10:20:30m"
-  ?pen background = rgb(10,20,30)
+  ?pen background = rgb:rgb(10,20,30)
 PUSH "\e[48:5:1m"
-  ?pen background = rgb(224,0,0)
+  ?pen background = 1:rgb(224,0,0)
 PUSH "\e[49m"
-  ?pen background = rgb(0,0,0)
+  ?pen background = default:rgb(0,0,0)
 
 !Bold+ANSI colour == highbright
 PUSH "\e[m\e[1;37m"
   ?pen bold = on
-  ?pen foreground = rgb(255,255,255)
+  ?pen foreground = 7:rgb(255,255,255)
 PUSH "\e[m\e[37;1m"
   ?pen bold = on
-  ?pen foreground = rgb(255,255,255)
+  ?pen foreground = 7:rgb(255,255,255)
 PUSH "\e[m\e[1;38:5:7m"
   ?pen bold = on
-  ?pen foreground = rgb(255,255,255)
+  ?pen foreground = 7:rgb(255,255,255)
 PUSH "\e[m\e[38:5:7;1m"
   ?pen bold = on
-  ?pen foreground = rgb(255,255,255)
+  ?pen foreground = 7:rgb(255,255,255)
 PUSH "\e[m\e[1;31;22m"
   ?pen bold = off
-  ?pen foreground = rgb(224,0,0)
+  ?pen foreground = 1:rgb(224,0,0)

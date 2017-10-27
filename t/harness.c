@@ -278,6 +278,8 @@ static struct {
   int font;
   VTermColor foreground;
   VTermColor background;
+  int foreground_index;
+  int background_index;
 } state_pen;
 static int state_setpenattr(VTermAttr attr, VTermValue *val, void *user)
 {
@@ -308,6 +310,12 @@ static int state_setpenattr(VTermAttr attr, VTermValue *val, void *user)
     break;
   case VTERM_ATTR_BACKGROUND:
     state_pen.background = val->color;
+    break;
+  case VTERM_ATTR_FOREGROUND_INDEX:
+    state_pen.foreground_index = val->number;
+    break;
+  case VTERM_ATTR_BACKGROUND_INDEX:
+    state_pen.background_index = val->number;
     break;
 
   case VTERM_N_ATTRS:
@@ -413,6 +421,17 @@ static int screen_sb_popline(int cols, VTermScreenCell *cells, void *user)
 
   printf("sb_popline %d\n", cols);
   return 1;
+}
+
+static const char *sprint_color(int16_t index, const VTermColor *color) {
+  static char buf[32];
+  if (index == VTERM_PAL_INDEX_DEFAULT)
+    snprintf(buf, sizeof buf, "default:rgb(%d,%d,%d)", color->red, color->green, color->blue);
+  else if (index == VTERM_PAL_INDEX_RGB)
+    snprintf(buf, sizeof buf, "rgb:rgb(%d,%d,%d)", color->red, color->green, color->blue);
+  else
+    snprintf(buf, sizeof buf, "%d:rgb(%d,%d,%d)", index, color->red, color->green, color->blue);
+  return buf;
 }
 
 VTermScreenCallbacks screen_cbs = {
@@ -749,10 +768,10 @@ int main(int argc, char **argv)
             printf("%d\n", state_pen.font);
         }
         else if(streq(linep, "foreground")) {
-          printf("rgb(%d,%d,%d)\n", state_pen.foreground.red, state_pen.foreground.green, state_pen.foreground.blue);
+          printf("%s\n", sprint_color(state_pen.foreground_index, &state_pen.foreground));
         }
         else if(streq(linep, "background")) {
-          printf("rgb(%d,%d,%d)\n", state_pen.background.red, state_pen.background.green, state_pen.background.blue);
+          printf("%s\n", sprint_color(state_pen.background_index, &state_pen.background));
         }
         else
           printf("?\n");
@@ -843,8 +862,8 @@ int main(int argc, char **argv)
         printf("} ");
         if(cell.attrs.dwl)       printf("dwl ");
         if(cell.attrs.dhl)       printf("dhl-%s ", cell.attrs.dhl == 2 ? "bottom" : "top");
-        printf("fg=rgb(%d,%d,%d) ",  cell.fg.red, cell.fg.green, cell.fg.blue);
-        printf("bg=rgb(%d,%d,%d)\n", cell.bg.red, cell.bg.green, cell.bg.blue);
+        printf("fg=%s ",  sprint_color(cell.fg_index, &cell.fg));
+        printf("bg=%s\n", sprint_color(cell.bg_index, &cell.bg));
       }
       else if(strstartswith(line, "?screen_eol ")) {
         char *linep = line + 12;

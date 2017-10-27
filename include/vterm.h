@@ -72,15 +72,17 @@ typedef union {
 
 typedef enum {
   /* VTERM_ATTR_NONE = 0 */
-  VTERM_ATTR_BOLD = 1,   // bool:   1, 22
-  VTERM_ATTR_UNDERLINE,  // number: 4, 21, 24
-  VTERM_ATTR_ITALIC,     // bool:   3, 23
-  VTERM_ATTR_BLINK,      // bool:   5, 25
-  VTERM_ATTR_REVERSE,    // bool:   7, 27
-  VTERM_ATTR_STRIKE,     // bool:   9, 29
-  VTERM_ATTR_FONT,       // number: 10-19
-  VTERM_ATTR_FOREGROUND, // color:  30-39 90-97
-  VTERM_ATTR_BACKGROUND, // color:  40-49 100-107
+  VTERM_ATTR_BOLD = 1,         // bool:   1, 22
+  VTERM_ATTR_UNDERLINE,        // number: 4, 21, 24
+  VTERM_ATTR_ITALIC,           // bool:   3, 23
+  VTERM_ATTR_BLINK,            // bool:   5, 25
+  VTERM_ATTR_REVERSE,          // bool:   7, 27
+  VTERM_ATTR_STRIKE,           // bool:   9, 29
+  VTERM_ATTR_FONT,             // number: 10-19
+  VTERM_ATTR_FOREGROUND,       // color:  30-39 90-97
+  VTERM_ATTR_BACKGROUND,       // color:  40-49 100-107
+  VTERM_ATTR_FOREGROUND_INDEX, // number: 30-39 90-97
+  VTERM_ATTR_BACKGROUND_INDEX, // number: 40-49 100-107
 
   VTERM_N_ATTRS
 } VTermAttr;
@@ -257,12 +259,16 @@ typedef struct {
     unsigned int dhl       : 2; /* On a DECDHL line (1=top 2=bottom) */
 } VTermScreenCellAttrs;
 
+#define VTERM_PAL_INDEX_DEFAULT  (-1)
+#define VTERM_PAL_INDEX_RGB      (-2)
+
 typedef struct {
 #define VTERM_MAX_CHARS_PER_CELL 6
   uint32_t chars[VTERM_MAX_CHARS_PER_CELL];
   char     width;
   VTermScreenCellAttrs attrs;
   VTermColor fg, bg;
+  int16_t    fg_index, bg_index; /* 0..255 or VTERM_PAL_INDEX_* */
 } VTermScreenCell;
 
 typedef struct {
