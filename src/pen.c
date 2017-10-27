@@ -239,7 +239,7 @@ INTERNAL void vterm_state_setpen(VTermState *state, const long args[], int argco
       state->pen.bold = 1;
       setpenattr_bool(state, VTERM_ATTR_BOLD, 1);
       if(state->fg_index > -1 && state->fg_index < 8 && state->bold_is_highbright)
-        set_pen_col_ansi(state, VTERM_ATTR_FOREGROUND, state->fg_index + (state->pen.bold ? 8 : 0));
+        set_pen_col_ansi(state, VTERM_ATTR_FOREGROUND, state->fg_index + 8);
       break;
 
     case 3: // Italic on
@@ -281,6 +281,8 @@ INTERNAL void vterm_state_setpen(VTermState *state, const long args[], int argco
     case 22: // Bold off
       state->pen.bold = 0;
       setpenattr_bool(state, VTERM_ATTR_BOLD, 0);
+      if(state->fg_index > -1 && state->fg_index < 8 && state->bold_is_highbright)
+        set_pen_col_ansi(state, VTERM_ATTR_FOREGROUND, state->fg_index);
       break;
 
     case 23: // Italic and Gothic (currently unsupported) off
