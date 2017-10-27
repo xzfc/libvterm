@@ -73,8 +73,9 @@ static bool lookup_colour_palette(const VTermState *state, long index, VTermColo
   return false;
 }
 
-static int lookup_colour(const VTermState *state, int palette, const long args[], int argcount, VTermColor *col, int *index)
+static int lookup_colour(const VTermState *state, int palette, const long args[], int argcount, VTermColor *col, int *index, bool highbright)
 {
+  int value;
   switch(palette) {
   case 2: // RGB mode - 3 args contain colour values directly
     if(argcount < 3)
@@ -87,12 +88,16 @@ static int lookup_colour(const VTermState *state, int palette, const long args[]
     return 3;
 
   case 5: // XTerm 256-colour mode
-    if(index)
-      *index = CSI_ARG_OR(args[0], -1);
+    if (argcount < 1)
+      return 0;
 
-    lookup_colour_palette(state, argcount ? CSI_ARG_OR(args[0], -1) : -1, col);
+    value = *index = CSI_ARG_OR(args[0], -1);
+    if (highbright && value >= 0 && value < 8)
+      value += 8;
 
-    return argcount ? 1 : 0;
+    lookup_colour_palette(state, value, col);
+
+    return 1;
 
   default:
     DEBUG_LOG("Unrecognised colour palette %d\n", palette);
@@ -323,7 +328,7 @@ INTERNAL void vterm_state_setpen(VTermState *state, const long args[], int argco
       state->fg_index = -1;
       if(argcount - argi < 1)
         return;
-      argi += 1 + lookup_colour(state, CSI_ARG(args[argi+1]), args+argi+2, argcount-argi-2, &state->pen.fg, &state->fg_index);
+      argi += 1 + lookup_colour(state, CSI_ARG(args[argi+1]), args+argi+2, argcount-argi-2, &state->pen.fg, &state->fg_index, state->pen.bold && state->bold_is_highbright);
       setpenattr_col(state, VTERM_ATTR_FOREGROUND, state->pen.fg);
       break;
 
@@ -344,7 +349,7 @@ INTERNAL void vterm_state_setpen(VTermState *state, const long args[], int argco
       state->bg_index = -1;
       if(argcount - argi < 1)
         return;
-      argi += 1 + lookup_colour(state, CSI_ARG(args[argi+1]), args+argi+2, argcount-argi-2, &state->pen.bg, &state->bg_index);
+      argi += 1 + lookup_colour(state, CSI_ARG(args[argi+1]), args+argi+2, argcount-argi-2, &state->pen.bg, &state->bg_index, false);
       setpenattr_col(state, VTERM_ATTR_BACKGROUND, state->pen.bg);
       break;
 
